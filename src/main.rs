@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
+use colored::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{self};
 use std::fs;
@@ -75,7 +76,8 @@ fn check_tasks() -> Result<()> {
     let mut index = 0;
     for task in tasks {
         index += 1;
-        println!("{}: {}\n  {}", index, task.content, task.create_date);
+        println!("{}:{}", index, task.content.cyan());
+        println!("{}", task.create_date.to_string().green());
     }
     Ok(())
 }

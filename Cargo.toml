@@ -1,5 +1,5 @@
 [package]
-name = "todo_cli"
+name = "slime"
 version = "0.1.0"
 edition = "2024"
 
@@ -10,3 +10,5 @@ anyhow = {version = "1.0"}
 time = {version="0.3",features=["serde","local-offset"]}
 serde = {version = "1.0", features = ["derive"]}
 bincode = {version = "2.0", features = ["serde"]}
+rename = "0.1.1"
+colored = "2.0"
