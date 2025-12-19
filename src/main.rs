@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use colored::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{self};
@@ -39,9 +39,17 @@ fn first_run() -> Result<()> {
 }
 
 #[derive(Debug, Parser)]
-struct CLI {
-    option: String,
-    content: String,
+struct Cli {
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    Add { content: String },
+    List,
+    Delete { id: usize },
+    Clear,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,7 +77,7 @@ impl Task {
 }
 
 fn load_tasks() -> Result<Vec<Task>> {
-    let file_path = Path::new("archive/Task.json");
+    let file_path = access_archive_path()?;
     if !file_path.exists() {
         return Ok(vec![]);
     }
@@ -84,7 +92,8 @@ fn load_tasks() -> Result<Vec<Task>> {
 
 fn save_tasks(tasks: &Vec<Task>) -> Result<()> {
     let json = serde_json::to_string_pretty(tasks)?;
-    fs::write("archive/Task.json", json).context("Failed to write file!")?;
+    let archive_path = access_archive_path()?;
+    fs::write(&archive_path, json).context("Failed to write file!")?;
     Ok(())
 }
 
@@ -107,11 +116,10 @@ fn check_tasks() -> Result<()> {
     Ok(())
 }
 
-fn delete_task(content: String) -> Result<()> {
+fn delete_task(index: usize) -> Result<()> {
     let mut tasks = load_tasks().context("Failed to load tasks")?;
 
-    let index = content.trim().parse::<i32>().context("Invalid number!")?;
-    if index <= 0 || index > tasks.len() as i32 {
+    if index <= 0 || index > tasks.len() {
         return Err(anyhow!("Invalid index!"));
     }
     tasks.remove((index - 1) as usize);
@@ -126,14 +134,13 @@ fn clear_tasks() -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let args = CLI::parse();
+    let args = Cli::parse();
     first_run().context("Failed to initialize slime!")?;
-    match args.option.as_str() {
-        "add" => add_task(args.content)?,
-        "check" => check_tasks()?,
-        "delete" => delete_task(args.content)?,
-        "clear" => clear_tasks()?,
-        _ => println!("Invalid option"),
+    match args.command {
+        Command::Add { content } => add_task(content)?,
+        Command::List => check_tasks()?,
+        Command::Delete { id } => delete_task(id)?,
+        Command::Clear => clear_tasks()?,
     }
     Ok(())
 }
