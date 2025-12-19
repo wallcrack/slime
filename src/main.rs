@@ -75,11 +75,21 @@ impl Task {
     }
     fn display(&self) {
         let now = OffsetDateTime::now_local().unwrap();
+        let formatter =
+            time::format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
+                .unwrap();
         let remaining_time = self.time_limit
             - Duration::seconds(now.unix_timestamp() - self.create_date.unix_timestamp());
         println!("{}", self.content.cyan());
-        println!("  {}", self.create_date.to_string().green());
-        println!("  {}", remaining_time.to_string().green());
+        println!(
+            "  Created: {}",
+            self.create_date
+                .format(&formatter)
+                .unwrap()
+                .to_string()
+                .green()
+        );
+        println!("  Remaining: {}", remaining_time.to_string().green());
     }
 }
 
