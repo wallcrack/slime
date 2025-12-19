@@ -7,7 +7,7 @@ use std::{
     env, fs,
     path::{Path, PathBuf},
 };
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
 fn access_archive_path() -> Result<PathBuf> {
     let mut file_path = env::home_dir().context("Failed to get home directory!")?;
@@ -48,6 +48,24 @@ struct CLI {
 struct Task {
     content: String,
     create_date: OffsetDateTime,
+    time_limit: Duration,
+}
+impl Task {
+    fn new(content: String) -> Self {
+        Task {
+            content,
+            create_date: OffsetDateTime::now_local().unwrap(),
+            time_limit: Duration::days(7),
+        }
+    }
+    fn display(&self) {
+        let now = OffsetDateTime::now_local().unwrap();
+        let remaining_time = self.time_limit
+            - Duration::seconds(now.unix_timestamp() - self.create_date.unix_timestamp());
+        println!("{}", self.content.cyan());
+        println!("  {}", self.create_date.to_string().green());
+        println!("  {}", remaining_time.to_string().green());
+    }
 }
 
 fn load_tasks() -> Result<Vec<Task>> {
@@ -71,10 +89,7 @@ fn save_tasks(tasks: &Vec<Task>) -> Result<()> {
 }
 
 fn add_task(content: String) -> Result<()> {
-    let current_task = Task {
-        content,
-        create_date: OffsetDateTime::now_local().unwrap(),
-    };
+    let current_task = Task::new(content);
     let mut tasks = load_tasks().context("Failed to load tasks")?;
     tasks.push(current_task);
     save_tasks(&tasks).context("Failed to save tasks!")?;
@@ -86,8 +101,8 @@ fn check_tasks() -> Result<()> {
     let mut index = 0;
     for task in tasks {
         index += 1;
-        println!("{}:{}", index, task.content.cyan());
-        println!("{}", task.create_date.to_string().green());
+        print!("{}:", index);
+        task.display();
     }
     Ok(())
 }
