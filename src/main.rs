@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand};
 use colored::*;
+use humantime::parse_duration;
 use serde::{Deserialize, Serialize};
 use serde_json::{self};
 use std::{
@@ -46,9 +47,15 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    Add { content: String },
+    Add {
+        content: String,
+        #[clap(default_value = "1d")]
+        duration_str: String,
+    },
     List,
-    Delete { id: usize },
+    Delete {
+        id: usize,
+    },
     Clear,
 }
 
@@ -59,11 +66,11 @@ struct Task {
     time_limit: Duration,
 }
 impl Task {
-    fn new(content: String) -> Self {
+    fn new(content: String, time_limit: Duration) -> Self {
         Task {
             content,
             create_date: OffsetDateTime::now_local().unwrap(),
-            time_limit: Duration::days(7),
+            time_limit: time_limit,
         }
     }
     fn display(&self) {
@@ -97,8 +104,11 @@ fn save_tasks(tasks: &Vec<Task>) -> Result<()> {
     Ok(())
 }
 
-fn add_task(content: String) -> Result<()> {
-    let current_task = Task::new(content);
+fn add_task(content: String, duration_str: String) -> Result<()> {
+    let time_limit =
+        Duration::try_from(parse_duration(&duration_str).context("Failed to convert duration!")?)
+            .context("Failed to convert duration!")?;
+    let current_task = Task::new(content, time_limit);
     let mut tasks = load_tasks().context("Failed to load tasks")?;
     tasks.push(current_task);
     save_tasks(&tasks).context("Failed to save tasks!")?;
@@ -137,7 +147,10 @@ fn main() -> Result<()> {
     let args = Cli::parse();
     first_run().context("Failed to initialize slime!")?;
     match args.command {
-        Command::Add { content } => add_task(content)?,
+        Command::Add {
+            content,
+            duration_str,
+        } => add_task(content, duration_str)?,
         Command::List => check_tasks()?,
         Command::Delete { id } => delete_task(id)?,
         Command::Clear => clear_tasks()?,
