@@ -3,9 +3,18 @@ use clap::Parser;
 use colored::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{self};
-use std::fs;
-use std::path::Path;
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 use time::OffsetDateTime;
+
+fn access_archive_path() -> Result<PathBuf> {
+    let mut file_path = env::home_dir().context("Failed to get home directory!")?;
+    file_path.push("slime_archive");
+    file_path.push("Task.json");
+    Ok(file_path)
+}
 
 fn create_file_with_dirs(path: impl AsRef<Path>) -> std::io::Result<fs::File> {
     let path = path.as_ref();
@@ -17,8 +26,8 @@ fn create_file_with_dirs(path: impl AsRef<Path>) -> std::io::Result<fs::File> {
     fs::File::create(path)
 }
 
-fn first_run() {
-    let file_path = Path::new("archive/Task.json");
+fn first_run() -> Result<()> {
+    let file_path = access_archive_path().context("Failed to get archive path!")?;
     if !file_path.exists() {
         if let Ok(_) = create_file_with_dirs(file_path) {
             println!("File created successfully!");
@@ -26,6 +35,7 @@ fn first_run() {
             println!("Failed to create file!");
         }
     }
+    Ok(())
 }
 
 #[derive(Debug, Parser)]
@@ -102,7 +112,7 @@ fn clear_tasks() -> Result<()> {
 
 fn main() -> Result<()> {
     let args = CLI::parse();
-    first_run();
+    first_run().context("Failed to initialize slime!")?;
     match args.option.as_str() {
         "add" => add_task(args.content)?,
         "check" => check_tasks()?,
