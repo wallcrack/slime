@@ -60,7 +60,6 @@ enum Command {
         id1: usize,
         id2: usize,
     },
-    Clear,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -178,7 +177,6 @@ fn main() -> Result<()> {
         Command::List => check_tasks()?,
         Command::Delete { id } => delete_task(id)?,
         Command::Swap { id1, id2 } => swap_tasks(id1, id2)?,
-        Command::Clear => clear_tasks()?,
     }
     Ok(())
 }
