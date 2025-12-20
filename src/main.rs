@@ -56,6 +56,10 @@ enum Command {
     Delete {
         id: usize,
     },
+    Swap {
+        id1: usize,
+        id2: usize,
+    },
     Clear,
 }
 
@@ -152,6 +156,16 @@ fn clear_tasks() -> Result<()> {
     save_tasks(&empty_list).context("Failed to save tasks!")?;
     Ok(())
 }
+fn swap_tasks(id1: usize, id2: usize) -> Result<()> {
+    let mut tasks = load_tasks().context("Failed to load tasks")?;
+
+    if id1 <= 0 || id1 > tasks.len() || id2 <= 0 || id2 > tasks.len() {
+        return Err(anyhow!("Invalid index!"));
+    }
+    tasks.swap(id1 - 1, id2 - 1);
+    save_tasks(&tasks).context("Failed to save tasks!")?;
+    Ok(())
+}
 
 fn main() -> Result<()> {
     let args = Cli::parse();
@@ -163,6 +177,7 @@ fn main() -> Result<()> {
         } => add_task(content, duration_str)?,
         Command::List => check_tasks()?,
         Command::Delete { id } => delete_task(id)?,
+        Command::Swap { id1, id2 } => swap_tasks(id1, id2)?,
         Command::Clear => clear_tasks()?,
     }
     Ok(())
