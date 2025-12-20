@@ -10,10 +10,10 @@ use std::{
 };
 use time::{Duration, OffsetDateTime};
 
-fn access_archive_path() -> Result<PathBuf> {
+fn access_archive_path(filename: &str) -> Result<PathBuf> {
     let mut file_path = env::home_dir().context("Failed to get home directory!")?;
     file_path.push("slime_archive");
-    file_path.push("Task.json");
+    file_path.push(filename);
     Ok(file_path)
 }
 
@@ -28,7 +28,7 @@ fn create_file_with_dirs(path: impl AsRef<Path>) -> std::io::Result<fs::File> {
 }
 
 fn first_run() -> Result<()> {
-    let file_path = access_archive_path().context("Failed to get archive path!")?;
+    let file_path = access_archive_path("Task.json").context("Failed to get archive path!")?;
     if !file_path.exists() {
         if let Ok(_) = create_file_with_dirs(file_path) {
             println!("File created successfully!");
@@ -60,6 +60,10 @@ enum Command {
         id1: usize,
         id2: usize,
     },
+    Done {
+        id: usize,
+    },
+    ListDone,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -97,7 +101,20 @@ impl Task {
 }
 
 fn load_tasks() -> Result<Vec<Task>> {
-    let file_path = access_archive_path()?;
+    let file_path = access_archive_path("Task.json")?;
+    if !file_path.exists() {
+        return Ok(vec![]);
+    }
+    let content = fs::read(&file_path).context("Failed to read file!")?;
+    if content.is_empty() {
+        return Ok(vec![]);
+    }
+    let tasks: Vec<Task> =
+        serde_json::from_slice(&content).context("Failed to deserialize tasks!")?;
+    Ok(tasks)
+}
+fn load_done_tasks() -> Result<Vec<Task>> {
+    let file_path = access_archive_path("done_tasks.json")?;
     if !file_path.exists() {
         return Ok(vec![]);
     }
@@ -112,7 +129,13 @@ fn load_tasks() -> Result<Vec<Task>> {
 
 fn save_tasks(tasks: &Vec<Task>) -> Result<()> {
     let json = serde_json::to_string_pretty(tasks)?;
-    let archive_path = access_archive_path()?;
+    let archive_path = access_archive_path("Task.json")?;
+    fs::write(&archive_path, json).context("Failed to write file!")?;
+    Ok(())
+}
+fn save_done_tasks(tasks: &Vec<Task>) -> Result<()> {
+    let json = serde_json::to_string_pretty(tasks)?;
+    let archive_path = access_archive_path("done_tasks.json")?;
     fs::write(&archive_path, json).context("Failed to write file!")?;
     Ok(())
 }
@@ -128,17 +151,6 @@ fn add_task(content: String, duration_str: String) -> Result<()> {
     Ok(())
 }
 
-fn check_tasks() -> Result<()> {
-    let tasks = load_tasks().context("Failed to load tasks")?;
-    let mut index = 0;
-    for task in tasks {
-        index += 1;
-        print!("{}:", index);
-        task.display();
-    }
-    Ok(())
-}
-
 fn delete_task(index: usize) -> Result<()> {
     let mut tasks = load_tasks().context("Failed to load tasks")?;
 
@@ -150,11 +162,14 @@ fn delete_task(index: usize) -> Result<()> {
     Ok(())
 }
 
+/*
 fn clear_tasks() -> Result<()> {
     let empty_list = Vec::<Task>::new();
     save_tasks(&empty_list).context("Failed to save tasks!")?;
     Ok(())
 }
+*/
+
 fn swap_tasks(id1: usize, id2: usize) -> Result<()> {
     let mut tasks = load_tasks().context("Failed to load tasks")?;
 
@@ -163,6 +178,38 @@ fn swap_tasks(id1: usize, id2: usize) -> Result<()> {
     }
     tasks.swap(id1 - 1, id2 - 1);
     save_tasks(&tasks).context("Failed to save tasks!")?;
+    Ok(())
+}
+fn mark_task_done(id: usize) -> Result<()> {
+    let mut undone_tasks = load_tasks().context("Failed to load tasks")?;
+    let mut done_tasks = load_done_tasks().context("Failed to load done tasks")?;
+
+    if id <= 0 || id > undone_tasks.len() {
+        return Err(anyhow!("Invalid index!"));
+    }
+    done_tasks.push(undone_tasks.remove((id - 1) as usize));
+    save_tasks(&undone_tasks).context("Failed to save undone tasks!")?;
+    save_done_tasks(&done_tasks).context("Failed to save done tasks!")?;
+    Ok(())
+}
+fn display_tasks() -> Result<()> {
+    let tasks = load_tasks().context("Failed to load tasks")?;
+    let mut index = 0;
+    for task in tasks {
+        index += 1;
+        print!("{}:", index);
+        task.display();
+    }
+    Ok(())
+}
+fn display_done_tasks() -> Result<()> {
+    let tasks = load_done_tasks().context("Failed to load tasks")?;
+    let mut index = 0;
+    for task in tasks {
+        index += 1;
+        print!("{}:", index);
+        task.display();
+    }
     Ok(())
 }
 
@@ -174,9 +221,11 @@ fn main() -> Result<()> {
             content,
             duration_str,
         } => add_task(content, duration_str)?,
-        Command::List => check_tasks()?,
+        Command::List => display_tasks()?,
         Command::Delete { id } => delete_task(id)?,
         Command::Swap { id1, id2 } => swap_tasks(id1, id2)?,
+        Command::Done { id } => mark_task_done(id)?,
+        Command::ListDone => display_done_tasks()?,
     }
     Ok(())
 }
