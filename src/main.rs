@@ -202,12 +202,13 @@ fn display_tasks() -> Result<()> {
     }
     Ok(())
 }
+
 fn display_done_tasks() -> Result<()> {
     let tasks = load_done_tasks().context("Failed to load tasks")?;
     let mut index = 0;
     for task in tasks {
         index += 1;
-        print!("{}:", index);
+        print!("✅{}:", index);
         task.display();
     }
     Ok(())
