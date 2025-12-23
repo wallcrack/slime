@@ -143,8 +143,12 @@ impl Task {
         self.last_active_date = Some(OffsetDateTime::now_local().unwrap());
     }
     pub fn inactivate(&mut self) {
-        let last_active_date = self.last_active_date.unwrap();
-        self.used_time += OffsetDateTime::now_local().unwrap() - last_active_date;
+        match self.last_active_date {
+            Some(last_active_date) => {
+                self.used_time += OffsetDateTime::now_local().unwrap() - last_active_date;
+            }
+            None => {}
+        }
     }
     pub fn done(&mut self) {
         self.inactivate();
