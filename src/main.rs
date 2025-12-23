@@ -50,7 +50,7 @@ enum Command {
         id: usize,
     },
     Focusing,
-    Unfocus,
+    Relax,
     ListDone,
 }
 
@@ -189,7 +189,7 @@ fn main() -> Result<()> {
         Command::ListDone => display_done_tasks()?,
         Command::Focus { id } => focus_task(id)?,
         Command::Focusing => display_focusing()?,
-        Command::Unfocus => unfocus_task()?,
+        Command::Relax => unfocus_task()?,
     }
     Ok(())
 }
