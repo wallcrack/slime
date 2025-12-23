@@ -118,6 +118,10 @@ impl TaskList {
         println!("🛠️  Used Time: {}", task.used_time.to_string().green());
     }
     pub fn unfocus(&mut self) -> Result<()> {
+        if !self.is_focusing {
+            println!("Slime has been relaxing.");
+            return Ok(());
+        }
         self.is_focusing = false;
         self.tasks[self.focused_on].inactivate();
         Ok(())
