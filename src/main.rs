@@ -1,21 +1,11 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use colored::*;
-use humantime::parse_duration;
-use serde::{Deserialize, Serialize};
 use serde_json::{self};
-use std::{
-    env, fs,
-    path::{Path, PathBuf},
-};
-use time::{Duration, OffsetDateTime};
-
-fn access_archive_path(filename: &str) -> Result<PathBuf> {
-    let mut file_path = env::home_dir().context("Failed to get home directory!")?;
-    file_path.push("slime_archive");
-    file_path.push(filename);
-    Ok(file_path)
-}
+use std::{fs, path::Path};
+mod common;
+use common::*;
+mod task;
+use task::*;
 
 fn create_file_with_dirs(path: impl AsRef<Path>) -> std::io::Result<fs::File> {
     let path = path.as_ref();
@@ -28,7 +18,7 @@ fn create_file_with_dirs(path: impl AsRef<Path>) -> std::io::Result<fs::File> {
 }
 
 fn first_run() -> Result<()> {
-    let file_path = access_archive_path("Task.json").context("Failed to get archive path!")?;
+    let file_path = access_archive_path("tasks.json").context("Failed to get archive path!")?;
     if !file_path.exists() {
         if let Ok(_) = create_file_with_dirs(file_path) {
             println!("File created successfully!");
@@ -49,120 +39,65 @@ struct Cli {
 enum Command {
     Add {
         content: String,
-        #[clap(default_value = "1d")]
         duration_str: String,
     },
     List,
     Delete {
         id: usize,
     },
-    Swap {
-        id1: usize,
-        id2: usize,
-    },
-    Done {
+    Done,
+    Focus {
         id: usize,
     },
+    Focusing,
+    Unfocus,
     ListDone,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Task {
-    content: String,
-    create_date: OffsetDateTime,
-    time_limit: Duration,
-}
-impl Task {
-    fn new(content: String, time_limit: Duration) -> Self {
-        Task {
-            content,
-            create_date: OffsetDateTime::now_local().unwrap(),
-            time_limit: time_limit,
-        }
-    }
-    fn display(&self) {
-        let now = OffsetDateTime::now_local().unwrap();
-        let formatter =
-            time::format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
-                .unwrap();
-        let remaining_time = self.time_limit
-            - Duration::seconds(now.unix_timestamp() - self.create_date.unix_timestamp());
-        println!("{}", self.content.cyan());
-        println!(
-            "  Created: {}",
-            self.create_date
-                .format(&formatter)
-                .unwrap()
-                .to_string()
-                .green()
-        );
-        println!("  Remaining: {}", remaining_time.to_string().green());
-    }
-}
-
-fn load_tasks() -> Result<Vec<Task>> {
-    let file_path = access_archive_path("Task.json")?;
+fn load_tasks() -> Result<TaskList> {
+    let file_path = access_archive_path("tasks.json")?;
     if !file_path.exists() {
-        return Ok(vec![]);
+        return Ok(TaskList::new());
     }
     let content = fs::read(&file_path).context("Failed to read file!")?;
     if content.is_empty() {
-        return Ok(vec![]);
+        return Ok(TaskList::new());
     }
-    let tasks: Vec<Task> =
+    let task_list: TaskList =
         serde_json::from_slice(&content).context("Failed to deserialize tasks!")?;
-    Ok(tasks)
-}
-fn load_done_tasks() -> Result<Vec<Task>> {
-    let file_path = access_archive_path("done_tasks.json")?;
-    if !file_path.exists() {
-        return Ok(vec![]);
-    }
-    let content = fs::read(&file_path).context("Failed to read file!")?;
-    if content.is_empty() {
-        return Ok(vec![]);
-    }
-    let tasks: Vec<Task> =
-        serde_json::from_slice(&content).context("Failed to deserialize tasks!")?;
-    Ok(tasks)
+    Ok(task_list)
 }
 
-fn save_tasks(tasks: &Vec<Task>) -> Result<()> {
-    let json = serde_json::to_string_pretty(tasks)?;
-    let archive_path = access_archive_path("Task.json")?;
-    fs::write(&archive_path, json).context("Failed to write file!")?;
-    Ok(())
-}
-fn save_done_tasks(tasks: &Vec<Task>) -> Result<()> {
-    let json = serde_json::to_string_pretty(tasks)?;
-    let archive_path = access_archive_path("done_tasks.json")?;
+fn save_tasks(task_list: &TaskList) -> Result<()> {
+    let json = serde_json::to_string_pretty(task_list)?;
+    let archive_path = access_archive_path("tasks.json")?;
     fs::write(&archive_path, json).context("Failed to write file!")?;
     Ok(())
 }
 
 fn add_task(content: String, duration_str: String) -> Result<()> {
-    let time_limit =
-        Duration::try_from(parse_duration(&duration_str).context("Failed to convert duration!")?)
-            .context("Failed to convert duration!")?;
-    let current_task = Task::new(content, time_limit);
-    let mut tasks = load_tasks().context("Failed to load tasks")?;
-    tasks.push(current_task);
-    save_tasks(&tasks).context("Failed to save tasks!")?;
+    let mut task_list = load_tasks().context("Failed to load tasks")?;
+    task_list.add(content, duration_str)?;
+    save_tasks(&task_list).context("Failed to save tasks!")?;
     Ok(())
 }
 
 fn delete_task(index: usize) -> Result<()> {
-    let mut tasks = load_tasks().context("Failed to load tasks")?;
-
-    if index <= 0 || index > tasks.len() {
-        return Err(anyhow!("Invalid index!"));
-    }
-    tasks.remove((index - 1) as usize);
-    save_tasks(&tasks).context("Failed to save tasks!")?;
+    let mut task_list = load_tasks().context("Failed to load tasks")?;
+    task_list.delete(index - 1)?;
+    save_tasks(&task_list).context("Failed to save tasks!")?;
+    Ok(())
+}
+/*
+fn swap_tasks(id1: usize, id2: usize) -> Result<()> {
+    println!("Command swap has been blocked");
+    return Ok(());
+    let mut task_list = load_tasks().context("Failed to load tasks")?;
+    task_list.swap(id1, id2)?;
+    save_tasks(&task_list).context("Failed to save tasks!")?;
     Ok(())
 }
 
-/*
 fn clear_tasks() -> Result<()> {
     let empty_list = Vec::<Task>::new();
     save_tasks(&empty_list).context("Failed to save tasks!")?;
@@ -170,47 +105,73 @@ fn clear_tasks() -> Result<()> {
 }
 */
 
-fn swap_tasks(id1: usize, id2: usize) -> Result<()> {
-    let mut tasks = load_tasks().context("Failed to load tasks")?;
+fn mark_task_done() -> Result<()> {
+    let mut tasks_list = load_tasks().context("Failed to load tasks")?;
+    let mut done_list = load_done_tasks().context("Failed to load done tasks")?;
 
-    if id1 <= 0 || id1 > tasks.len() || id2 <= 0 || id2 > tasks.len() {
-        return Err(anyhow!("Invalid index!"));
+    if !tasks_list.is_focusing() {
+        println!("No task is focused!");
+        return Ok(());
     }
-    tasks.swap(id1 - 1, id2 - 1);
-    save_tasks(&tasks).context("Failed to save tasks!")?;
+
+    let mut done_task = tasks_list.pop_focused_task()?;
+    done_task.done();
+    done_list.add(done_task);
+    save_tasks(&tasks_list).context("Failed to save tasks!")?;
+    save_done_tasks(&done_list).context("Failed to save done tasks!")?;
     Ok(())
 }
-fn mark_task_done(id: usize) -> Result<()> {
-    let mut undone_tasks = load_tasks().context("Failed to load tasks")?;
-    let mut done_tasks = load_done_tasks().context("Failed to load done tasks")?;
 
-    if id <= 0 || id > undone_tasks.len() {
-        return Err(anyhow!("Invalid index!"));
-    }
-    done_tasks.push(undone_tasks.remove((id - 1) as usize));
-    save_tasks(&undone_tasks).context("Failed to save undone tasks!")?;
-    save_done_tasks(&done_tasks).context("Failed to save done tasks!")?;
-    Ok(())
-}
 fn display_tasks() -> Result<()> {
-    let tasks = load_tasks().context("Failed to load tasks")?;
-    let mut index = 0;
-    for task in tasks {
-        index += 1;
-        print!("{}:", index);
-        task.display();
-    }
+    let task_list = load_tasks().context("Failed to load tasks")?;
+    task_list.display();
     Ok(())
+}
+
+fn save_done_tasks(done_list: &DoneList) -> Result<()> {
+    let json = serde_json::to_string_pretty(done_list)?;
+    let archive_path = access_archive_path("done_tasks.json")?;
+    fs::write(&archive_path, json).context("Failed to write file!")?;
+    Ok(())
+}
+
+fn load_done_tasks() -> Result<DoneList> {
+    let file_path = access_archive_path("done_tasks.json")?;
+    if !file_path.exists() {
+        return Ok(DoneList::new());
+    }
+    let content = fs::read(&file_path).context("Failed to read file!")?;
+    if content.is_empty() {
+        return Ok(DoneList::new());
+    }
+    let done_list: DoneList =
+        serde_json::from_slice(&content).context("Failed to deserialize tasks!")?;
+    Ok(done_list)
 }
 
 fn display_done_tasks() -> Result<()> {
-    let tasks = load_done_tasks().context("Failed to load tasks")?;
-    let mut index = 0;
-    for task in tasks {
-        index += 1;
-        print!("✅{}:", index);
-        task.display();
-    }
+    let done_list = load_done_tasks().context("Failed to load tasks")?;
+    done_list.display();
+    Ok(())
+}
+
+fn focus_task(id: usize) -> Result<()> {
+    let mut task_list = load_tasks().context("Failed to load tasks")?;
+    task_list.focus(id - 1)?;
+    save_tasks(&task_list).context("Failed to save tasks")?;
+    Ok(())
+}
+fn display_focusing() -> Result<()> {
+    let mut task_list = load_tasks().context("Failed to load tasks")?;
+    // 应该改为输出前刷新。
+    task_list.display_focusing();
+    Ok(())
+}
+
+fn unfocus_task() -> Result<()> {
+    let mut task_list = load_tasks().context("Failed to load tasks")?;
+    task_list.unfocus()?;
+    save_tasks(&task_list).context("Failed to save tasks")?;
     Ok(())
 }
 
@@ -224,9 +185,11 @@ fn main() -> Result<()> {
         } => add_task(content, duration_str)?,
         Command::List => display_tasks()?,
         Command::Delete { id } => delete_task(id)?,
-        Command::Swap { id1, id2 } => swap_tasks(id1, id2)?,
-        Command::Done { id } => mark_task_done(id)?,
+        Command::Done => mark_task_done()?,
         Command::ListDone => display_done_tasks()?,
+        Command::Focus { id } => focus_task(id)?,
+        Command::Focusing => display_focusing()?,
+        Command::Unfocus => unfocus_task()?,
     }
     Ok(())
 }
